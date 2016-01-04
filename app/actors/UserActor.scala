@@ -27,6 +27,12 @@ class UserActor(uid: String, field: ActorRef, out: ActorRef) extends Actor {
     }
     case UpdateUsers(users: Set[User]) if sender == field => {
       println("Log: UserActor#receive UpdateUsers")
+      val toge = Map[String, Int]()
+      users.map(u => toge + u.uid -> u.continuationCorrect)
+      users.map(println(_))
+      println("toge")
+      toge + "1" -> 0
+      println(toge)
       val js = Json.obj("type" -> "updateUsers", "uids" -> users.map(_.uid))
       out ! js
     }
