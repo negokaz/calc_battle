@@ -24,7 +24,9 @@ lazy val root = (project in file(".")).enablePlugins(PlayScala)
     // other, legacy style, accesses its actions statically.
     routesGenerator := InjectedRoutesGenerator
   )
-  .dependsOn(examiner)
+  .dependsOn(examinerApi)
+
+lazy val runSeed = TaskKey[Unit]("run-seed", "run one node as seed.")
 
 lazy val examiner = (project in file("modules/examiner"))
   .settings(commonSettings: _*)
@@ -32,7 +34,18 @@ lazy val examiner = (project in file("modules/examiner"))
     name := s"""$namePrefix-examiner""",
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-cluster" % "2.3.13",
+      "com.typesafe.akka" %% "akka-contrib" % "2.3.13", // 2.4.x では akka-cluster-tools
       "com.typesafe.akka" %% "akka-slf4j" % "2.3.13",
       "ch.qos.logback" % "logback-classic" % "1.1.3"
-    )
+    ),
+    fullRunInputTask(run, Compile, "com.example.calcbattle.examiner.Main", "127.0.0.1", "0"),
+    fullRunTask(runSeed, Compile, "com.example.calcbattle.examiner.Main", "127.0.0.1", "2552")
+  )
+  .dependsOn(examinerApi)
+
+
+lazy val examinerApi = (project in file("modules/examiner-api"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := s"""$namePrefix-examiner-api"""
   )

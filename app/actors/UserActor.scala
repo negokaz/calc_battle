@@ -1,11 +1,11 @@
 package actors
 
-import akka.actor.{Actor, ActorRef, Props}
-import models.Question
+import akka.actor.{ActorLogging, Actor, ActorRef, Props}
 import play.api.libs.json.{Writes, Json, JsValue}
+import com.example.calcbattle.examiner.api._
 
 object UserActor {
-  def props(uid: UID)(out: ActorRef) = Props(new UserActor(uid, FieldActor.field, out))
+  def props(uid: UID, examiner: ActorRef)(out: ActorRef) = Props(new UserActor(uid, examiner, FieldActor.field, out))
   
   case class UpdateUsers(users: Set[User])
   case class UpdateUser(user: User, finish: Boolean)
@@ -24,10 +24,14 @@ object UserActor {
       }.toMap)
     }
   }
+  implicit val questionWrites = Json.writes[Question]
 }
 
 import UserActor._
-class UserActor(uid: UID, field: ActorRef, out: ActorRef) extends Actor {
+class UserActor(uid: UID, examiner: ActorRef, field: ActorRef, out: ActorRef) extends Actor with ActorLogging {
+
+  import context.dispatcher
+
   override def preStart() = {
     FieldActor.field ! FieldActor.Subscribe(uid)
   }
@@ -37,7 +41,10 @@ class UserActor(uid: UID, field: ActorRef, out: ActorRef) extends Actor {
       (js \ "result").validate[Boolean] foreach {
         field ! FieldActor.Result(_)
       }
-      val question = Json.obj("type" -> "question", "question" -> Question.create())
+      examiner ! Create
+    }
+    case q: Question => {
+      val question = Json.obj("type" -> "question", "question" -> q)
       out ! question
     }
     case UpdateUser(user, finish) if sender == field => {

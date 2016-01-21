@@ -1,7 +1,10 @@
 package controllers
 
 import java.util.concurrent.atomic.AtomicInteger
+import javax.inject.Inject
 
+import akka.actor.ActorSystem
+import akka.routing.FromConfig
 import play.api._
 import play.api.mvc._
 import play.api.Play.current
@@ -10,9 +13,9 @@ import play.api.libs.json.JsValue
 import scala.{Left, Right}
 import scala.concurrent.Future
 
-import actors.UserActor
+import actors.{ExaminerClient, UserActor}
 
-class Application extends Controller {
+class Application @Inject()(system: ActorSystem) extends Controller {
   val UID = "uid"
   val counter: AtomicInteger = new AtomicInteger(0);
 
@@ -25,10 +28,12 @@ class Application extends Controller {
     }
   }
 
+  val examiner = system.actorOf(ExaminerClient.props())
+
   def ws = WebSocket.tryAcceptWithActor[JsValue, JsValue] { implicit request =>
     Future.successful(request.session.get(UID) match {
       case None => Left(Forbidden)
-      case Some(uid) => Right(UserActor.props(new UserActor.UID(uid)))
+      case Some(uid) => Right(UserActor.props(new UserActor.UID(uid), examiner))
     })
   }
 }
