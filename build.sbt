@@ -16,6 +16,7 @@ lazy val root = (project in file(".")).enablePlugins(PlayScala)
       jdbc,
       cache,
       ws,
+      "com.typesafe.akka" %% "akka-cluster" % "2.3.13",
       specs2 % Test
     ),
 
@@ -30,8 +31,8 @@ lazy val examiner = (project in file("modules/examiner"))
   .settings(
     name := s"""$namePrefix-examiner""",
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-cluster" % "2.4.1",
-      "com.typesafe.akka" %% "akka-slf4j" % "2.4.1",
+      "com.typesafe.akka" %% "akka-cluster" % "2.3.13",
+      "com.typesafe.akka" %% "akka-slf4j" % "2.3.13",
       "ch.qos.logback" % "logback-classic" % "1.1.3"
     )
   )
