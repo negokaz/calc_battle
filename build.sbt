@@ -24,7 +24,7 @@ lazy val root = (project in file(".")).enablePlugins(PlayScala)
     // other, legacy style, accesses its actions statically.
     routesGenerator := InjectedRoutesGenerator
   )
-  .dependsOn(examinerApi)
+  .dependsOn(examiner)
 
 lazy val examiner = (project in file("modules/examiner"))
   .settings(commonSettings: _*)
@@ -35,11 +35,4 @@ lazy val examiner = (project in file("modules/examiner"))
       "com.typesafe.akka" %% "akka-slf4j" % "2.3.13",
       "ch.qos.logback" % "logback-classic" % "1.1.3"
     )
-  )
-  .dependsOn(examinerApi)
-
-lazy val examinerApi = (project in file("modules/examiner-api"))
-  .settings(commonSettings: _*)
-  .settings(
-    name := s"""$namePrefix-examiner-api"""
   )
