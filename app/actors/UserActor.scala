@@ -30,8 +30,6 @@ object UserActor {
 import UserActor._
 class UserActor(uid: UID, examiner: ActorRef, field: ActorRef, out: ActorRef) extends Actor with ActorLogging {
 
-  import context.dispatcher
-
   override def preStart() = {
     FieldActor.field ! FieldActor.Subscribe(uid)
   }
