@@ -2,7 +2,7 @@ package actors
 
 import akka.actor.{Actor, ActorRef, Props, Terminated}
 import play.libs.Akka
-import UserActor._
+import SocketActor._
 
 object FieldActor {
   lazy val field = Akka.system().actorOf(Props[FieldActor])
@@ -24,7 +24,7 @@ class FieldActor extends Actor {
           users = users.updated(sender, updateUser)
 
           users.keys.foreach { userActor =>
-            userActor ! UserActor.UpdateUser(updateUser, finish)
+            userActor ! SocketActor.UpdateUser(updateUser, finish)
           }
         }
         case None => {
@@ -36,7 +36,7 @@ class FieldActor extends Actor {
       users += (sender -> User(uid, 0))
       context watch sender
       
-      val updateUsers = UserActor.UpdateUsers(users.values.toSet)
+      val updateUsers = SocketActor.UpdateUsers(users.values.toSet)
       users.keys.foreach { userActor =>
         userActor ! updateUsers
       }
@@ -44,7 +44,7 @@ class FieldActor extends Actor {
     case Terminated(user) => {
       users -= user
       
-      val updateUsers = UserActor.UpdateUsers(users.values.toSet)
+      val updateUsers = SocketActor.UpdateUsers(users.values.toSet)
       users.keys.foreach { userActor =>
         userActor ! updateUsers
       }
