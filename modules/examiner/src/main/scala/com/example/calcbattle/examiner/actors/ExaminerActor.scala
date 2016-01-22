@@ -5,18 +5,18 @@ import com.example.calcbattle.examiner.api._
 
 import scala.util.Random
 
-object ExaminerWorker {
+object ExaminerActor {
 
-  def props() = Props(new ExaminerWorker)
+  def props() = Props(new ExaminerActor)
 
-  val name = "examinerWorker"
+  val name = "examiner"
 
 }
 
 /**
   * 問題を作ります
   */
-class ExaminerWorker extends Actor with ActorLogging {
+class ExaminerActor extends Actor with ActorLogging {
 
   override def preStart() = {
     log.info("Hi, I'm a examiner.")

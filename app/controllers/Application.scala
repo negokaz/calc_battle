@@ -28,7 +28,7 @@ class Application @Inject()(system: ActorSystem) extends Controller {
     }
   }
 
-  val examiner = system.actorOf(ExaminerClient.props())
+  val examiner = system.actorOf(FromConfig.props(), "examinerRouter")
 
   def ws = WebSocket.tryAcceptWithActor[JsValue, JsValue] { implicit request =>
     Future.successful(request.session.get(UID) match {

@@ -1,7 +1,7 @@
 package com.example.calcbattle.examiner
 
 import akka.actor.{ActorSystem}
-import com.example.calcbattle.examiner.actors.{ExaminerService, ExaminerWorker}
+import com.example.calcbattle.examiner.actors.{ExaminerActor}
 import com.typesafe.config.ConfigFactory
 
 object Main extends App {
@@ -18,8 +18,7 @@ object Main extends App {
 
       val system = ActorSystem("application", config)
 
-      system.actorOf(ExaminerWorker.props(), ExaminerWorker.name)
-      system.actorOf(ExaminerService.props(), ExaminerService.name)
+      system.actorOf(ExaminerActor.props(), ExaminerActor.name)
 
       system.awaitTermination()
 
