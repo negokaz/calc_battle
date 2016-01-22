@@ -5,7 +5,7 @@ import play.api.libs.json.{Writes, Json, JsValue}
 import com.example.calcbattle.examiner.api._
 
 object SocketActor {
-  def props(uid: UID, examiner: ActorRef)(out: ActorRef) = Props(new SocketActor(uid, examiner, FieldActor.field, out))
+  def props(uid: UID, userRouter: ActorRef)(out: ActorRef) = Props(new SocketActor(uid, userRouter, FieldActor.field, out))
 
   case class UpdateUsers(users: Set[User])
   case class UpdateUser(user: User, finish: Boolean)
@@ -28,7 +28,7 @@ object SocketActor {
 }
 
 import SocketActor._
-class SocketActor(uid: UID, examiner: ActorRef, field: ActorRef, out: ActorRef) extends Actor with ActorLogging {
+class SocketActor(uid: UID, userRouter: ActorRef, field: ActorRef, out: ActorRef) extends Actor with ActorLogging {
 
   override def preStart() = {
     FieldActor.field ! FieldActor.Subscribe(uid)
@@ -39,7 +39,7 @@ class SocketActor(uid: UID, examiner: ActorRef, field: ActorRef, out: ActorRef) 
       (js \ "result").validate[Boolean] foreach {
         field ! FieldActor.Result(_)
       }
-      examiner ! Create
+      userRouter ! Create
     }
     case q: Question => {
       val question = Json.obj("type" -> "question", "question" -> q)

@@ -1,14 +1,20 @@
 package com.example.calcbattle.user.actors
 
-import akka.actor.{ActorRef, ActorSystem, ActorLogging, Props}
-import akka.contrib.pattern.{ClusterSharding, ShardRegion}
+import akka.actor._
+import akka.contrib.pattern.DistributedPubSubMediator.{Publish, Subscribe}
+import akka.contrib.pattern.{DistributedPubSubExtension, DistributedPubSubMediator, ClusterSharding, ShardRegion}
 import akka.persistence.PersistentActor
+import akka.routing.FromConfig
 import com.example.calcbattle.user
-import com.example.calcbattle
+import com.example.calcbattle.examiner
+
+import scala.concurrent.duration._
 
 object UserActor {
 
   def props(examiner: ActorRef) = Props(new UserActor(examiner))
+
+  val userUpdatedTopic = "userUpdated"
 
   val nrOfShards = 60
 
@@ -23,7 +29,7 @@ object UserActor {
   def startupClusterShardingOn(system: ActorSystem) = {
 
     val examiner =
-      system.actorOf(ExaminerClient.props(), ExaminerClient.name)
+      system.actorOf(FromConfig.props(), "examinerRouter")
 
     ClusterSharding(system).start(
       typeName      = "User",
@@ -34,15 +40,24 @@ object UserActor {
   }
 }
 
-class UserActor(examiner: ActorRef) extends PersistentActor with ActorLogging {
+class UserActor(examinerRouter: ActorRef) extends PersistentActor with ActorLogging {
+  import UserActor._
 
   override def persistenceId: String = s"${self.path.parent.name}-${self.path.name}"
 
+  val mediator = DistributedPubSubExtension(context.system).mediator
+
   var continuationCorrect = 0
 
+  override def preStart() = {
+    mediator ! Subscribe(userUpdatedTopic, self)
+  }
+
   def updateState(event: user.api.Result): Unit = {
-    if (event.answerIsCorrect)
+    if (event.answerIsCorrect) {
       continuationCorrect += 1
+      mediator ! Publish(userUpdatedTopic, user.api.UserUpdated(event.uid, continuationCorrect))
+    }
   }
 
   override def receiveRecover = {
@@ -53,12 +68,29 @@ class UserActor(examiner: ActorRef) extends PersistentActor with ActorLogging {
   override def receiveCommand = {
 
     case answer: user.api.Answer =>
-      val result = user.api.Result(answer.isCorrect)
-
+      val result = user.api.Result(answer.uid, answer.isCorrect)
       persist(result)(updateState)
-      sender() ! result
-      examiner ! examiner.api.
+      val replyTo = sender()
 
+      replyTo ! result
+
+      val delegate = context.actorOf(Props(classOf[QuestionDelegate], replyTo))
+      examinerRouter.tell(examiner.api.Create, delegate)
+
+  }
+
+  class QuestionDelegate(replyTo: ActorRef) extends Actor with ActorLogging {
+
+    context.setReceiveTimeout(5 seconds)
+
+    def receive = {
+
+      case question: examiner.api.Question =>
+        replyTo ! question
+
+      case ReceiveTimeout =>
+        log.error("5秒間 examiner からの応答がありませんでした。")
+    }
   }
 
 }

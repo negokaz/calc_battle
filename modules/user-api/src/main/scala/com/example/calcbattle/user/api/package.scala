@@ -36,6 +36,6 @@ package object api {
     * ユーザーの回答結果
     * @param answerIsCorrect
     */
-  case class Result(answerIsCorrect: Boolean)
+  case class Result(uid: UID, answerIsCorrect: Boolean)
 
 }

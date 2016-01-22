@@ -28,12 +28,12 @@ class Application @Inject()(system: ActorSystem) extends Controller {
     }
   }
 
-  val examiner = system.actorOf(FromConfig.props(), "examinerRouter")
+  val userRouter = system.actorOf(FromConfig.props(), "userRouter")
 
   def ws = WebSocket.tryAcceptWithActor[JsValue, JsValue] { implicit request =>
     Future.successful(request.session.get(UID) match {
       case None => Left(Forbidden)
-      case Some(uid) => Right(SocketActor.props(new SocketActor.UID(uid), examiner))
+      case Some(uid) => Right(SocketActor.props(new SocketActor.UID(uid), userRouter))
     })
   }
 }
