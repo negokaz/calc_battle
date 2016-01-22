@@ -13,7 +13,7 @@ import play.api.libs.json.JsValue
 import scala.{Left, Right}
 import scala.concurrent.Future
 
-import actors.{ExaminerClient, SocketActor}
+import actors.{UserClient, SocketActor}
 
 class Application @Inject()(system: ActorSystem) extends Controller {
   val UID = "uid"
