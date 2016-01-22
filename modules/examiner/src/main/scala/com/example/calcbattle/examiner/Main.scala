@@ -6,18 +6,24 @@ import com.typesafe.config.ConfigFactory
 
 object Main extends App {
 
-  val config =
-    ConfigFactory.parseString(
-      s"""
-         |akka.remote.netty.tcp.hostname = ${args(0)}
-         |akka.remote.netty.tcp.port     = ${args(1)}
-         |""".stripMargin
-    ).withFallback(ConfigFactory.load())
+  args match {
 
-  val system = ActorSystem("application", config)
+    case Array(hostname, port) =>
+      val config = ConfigFactory.parseString(
+        s"""
+           |akka.remote.netty.tcp.hostname = ${args(0)}
+           |akka.remote.netty.tcp.port     = ${args(1)}
+           |""".stripMargin
+      ).withFallback(ConfigFactory.load())
 
-  system.actorOf(ExaminerWorker.props(), ExaminerWorker.name)
-  system.actorOf(ExaminerService.props(), ExaminerService.name)
+      val system = ActorSystem("application", config)
 
-  system.awaitTermination()
+      system.actorOf(ExaminerWorker.props(), ExaminerWorker.name)
+      system.actorOf(ExaminerService.props(), ExaminerService.name)
+
+      system.awaitTermination()
+
+    case _ =>
+      throw new IllegalArgumentException("引数には <ホスト名> <ポート番号> を指定してください。")
+  }
 }
