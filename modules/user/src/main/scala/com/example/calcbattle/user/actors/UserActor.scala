@@ -50,7 +50,12 @@ class UserActor(examinerRouter: ActorRef) extends PersistentActor with ActorLogg
   var continuationCorrect = 0
 
   override def preStart() = {
+    log.info("starting.")
     mediator ! Subscribe(userUpdatedTopic, self)
+  }
+
+  override def postStop() = {
+    log.info("stopped.")
   }
 
   def updateState(event: user.api.Result): Unit = {
@@ -70,27 +75,11 @@ class UserActor(examinerRouter: ActorRef) extends PersistentActor with ActorLogg
     case answer: user.api.Answer =>
       val result = user.api.Result(answer.uid, answer.isCorrect)
       persist(result)(updateState)
-      val replyTo = sender()
+      sender() ! result
 
-      replyTo ! result
+    case user.api.UserUpdated(uid, continuationCorrect) =>
 
-      val delegate = context.actorOf(Props(classOf[QuestionDelegate], replyTo))
-      examinerRouter.tell(examiner.api.Create, delegate)
 
-  }
-
-  class QuestionDelegate(replyTo: ActorRef) extends Actor with ActorLogging {
-
-    context.setReceiveTimeout(5 seconds)
-
-    def receive = {
-
-      case question: examiner.api.Question =>
-        replyTo ! question
-
-      case ReceiveTimeout =>
-        log.error("5秒間 examiner からの応答がありませんでした。")
-    }
   }
 
 }

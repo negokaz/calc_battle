@@ -24,7 +24,7 @@ lazy val root = (project in file(".")).enablePlugins(PlayScala)
     // other, legacy style, accesses its actions statically.
     routesGenerator := InjectedRoutesGenerator
   )
-  .dependsOn(userApi)
+  .dependsOn(userApi, examinerApi)
 
 lazy val runSeed = TaskKey[Unit]("run-seed", "run one node as seed.")
 
@@ -46,7 +46,7 @@ lazy val user = (project in file("modules/user"))
     ),
     fullRunInputTask(run, Compile, "com.example.calcbattle.user.Main", "127.0.0.1", "0")
   )
-  .dependsOn(userApi, examinerApi)
+  .dependsOn(userApi)
 
 lazy val examinerApi = (project in file("modules/examiner-api"))
   .settings(commonSettings: _*)

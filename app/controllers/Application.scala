@@ -30,6 +30,8 @@ class Application @Inject()(system: ActorSystem) extends Controller {
 
   val userRouter = system.actorOf(FromConfig.props(), "userRouter")
 
+  val examinerRouter = system.actorOf(FromConfig.props(), "examinerRouter")
+
   def ws = WebSocket.tryAcceptWithActor[JsValue, JsValue] { implicit request =>
     Future.successful(request.session.get(UID) match {
       case None => Left(Forbidden)

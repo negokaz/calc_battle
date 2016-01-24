@@ -1,7 +1,7 @@
 package com.example.calcbattle.examiner.actors
 
 import akka.actor.{Props, ActorLogging, Actor}
-import com.example.calcbattle.examiner.api._
+import com.example.calcbattle.examiner
 
 import scala.util.Random
 
@@ -24,10 +24,10 @@ class ExaminerActor extends Actor with ActorLogging {
 
   def receive = {
 
-    case Create =>
+    case examiner.api.Create =>
       val left  = random()
       val right = random()
-      sender() ! Question(left, right)
+      sender() ! examiner.api.Question(left, right)
 
       log.info("Created a question: ({}, {})", left, right)
   }

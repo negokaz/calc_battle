@@ -2,10 +2,12 @@ package actors
 
 import akka.actor.{ActorLogging, Actor, ActorRef, Props}
 import play.api.libs.json.{Writes, Json, JsValue}
-import com.example.calcbattle.examiner.api._
+import com.example.calcbattle.examiner
+import com.example.calcbattle.user
 
 object SocketActor {
-  def props(uid: UID, userRouter: ActorRef)(out: ActorRef) = Props(new SocketActor(uid, userRouter, FieldActor.field, out))
+  def props(uid: UID, userRouter: ActorRef, examinerRouter: ActorRef)(out: ActorRef) =
+    Props(new SocketActor(uid, userRouter, examinerRouter, FieldActor.field, out))
 
   case class UpdateUsers(users: Set[User])
   case class UpdateUser(user: User, finish: Boolean)
@@ -24,11 +26,14 @@ object SocketActor {
       }.toMap)
     }
   }
-  implicit val questionWrites = Json.writes[Question]
+  implicit val questionWrites = Json.writes[examiner.api.Question]
+  implicit val resultWrites = Json.writes[user.api.Result]
+  implicit val answerReads = Json.reads[user.api.Answer]
+
 }
 
 import SocketActor._
-class SocketActor(uid: UID, userRouter: ActorRef, field: ActorRef, out: ActorRef) extends Actor with ActorLogging {
+class SocketActor(uid: UID, userRouter: ActorRef, examinerRouter: ActorRef, field: ActorRef, out: ActorRef) extends Actor with ActorLogging {
 
   override def preStart() = {
     FieldActor.field ! FieldActor.Subscribe(uid)
@@ -36,14 +41,18 @@ class SocketActor(uid: UID, userRouter: ActorRef, field: ActorRef, out: ActorRef
 
   def receive = {
     case js: JsValue => {
-      (js \ "result").validate[Boolean] foreach {
-        field ! FieldActor.Result(_)
+      (js \ "answer").validate[user.api.Answer].foreach {
+        userRouter ! _
       }
-      userRouter ! Create
+      examinerRouter ! examiner.api.Create
     }
-    case q: Question => {
+    case q: examiner.api.Question => {
       val question = Json.obj("type" -> "question", "question" -> q)
       out ! question
+    }
+    case result: user.api.Result => {
+      val js = Json.obj("type" -> "result", "result" -> result)
+      out ! js
     }
     case UpdateUser(user, finish) if sender == field => {
       val js = Json.obj("type" -> "updateUser", "user" -> user, "finish" -> finish)
