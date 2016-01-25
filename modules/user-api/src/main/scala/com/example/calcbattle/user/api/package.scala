@@ -8,21 +8,47 @@ package object api {
   case class UID(val underlying: String) extends AnyVal
 
   /**
-    * ユーザーの状態が更新された
+    * ユーザーとして参加する
+    */
+  case class Join(uid: UID)
+
+  /**
+    * ユーザーの状態をリクエストする
+    */
+  case class GetState(uid: UID)
+
+  /**
+    * ユーザーの状態
+ *
     * @param uid 状態が更新されたユーザーのID
     * @param continuationCurrent 現在の連続回答数
     */
-  case class UserUpdated(uid: UID, continuationCurrent: Int)
+  case class UserState(uid: UID, continuationCurrent: Int) {
+
+    /**
+      * @return true: ユーザーが連続回答のノルマを達成した
+      */
+    def isCompleted = continuationCurrent >= 5
+  }
 
   /**
-    * ユーザーが連続回答のノルマを達成した
-    * @param uid ノルマを達成したユーザーのID
+    * ユーザーの状態が更新された
+ *
+    * @param user 更新されたユーザーの状態
     */
-  case class UserCompleted(uid: UID)
+  case class UserUpdated(user: UserState)
+
+  /**
+    * ゲームに参加しているメンバの状態が変わった
+    * (新しいメンバが参加, メンバが脱退 etc...)
+ *
+    * @param member 全ユーザーの状態
+    */
+  case class MemberUpdated(member: Set[UID])
 
   /**
     * ユーザーの回答
-    * @param uid 回答したユーザーのID
+ *
     * @param questionA 問題の数字 A
     * @param questionB 問題の数字 B
     * @param userInput ユーザーの入力
@@ -34,6 +60,7 @@ package object api {
 
   /**
     * ユーザーの回答結果
+ *
     * @param answerIsCorrect
     */
   case class Result(uid: UID, answerIsCorrect: Boolean)

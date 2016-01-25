@@ -1,11 +1,13 @@
 package com.example.calcbattle.user
 
 import akka.actor.ActorSystem
-import akka.contrib.pattern.ClusterSharding
-import com.example.calcbattle.user.actors.{ExaminerClient, UserActor}
+import com.example.calcbattle.user.actors.{UserActor, UserWorker}
 import com.typesafe.config.ConfigFactory
 
-class Main extends App {
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
+
+object Main extends App {
 
   args match {
 
@@ -19,9 +21,11 @@ class Main extends App {
 
       val system = ActorSystem("application", config)
 
-      UserActor.startupClusterShardingOn(system)
+      UserActor.startupSharding(system)
 
-      system.awaitTermination()
+      system.actorOf(UserActor.props(), "user")
+
+      Await.result(system.whenTerminated, Duration.Inf)
 
     case _ =>
       throw new IllegalArgumentException("引数には <ホスト名> <ポート番号> を指定してください。")

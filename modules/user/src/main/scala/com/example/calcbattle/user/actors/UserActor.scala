@@ -1,85 +1,55 @@
 package com.example.calcbattle.user.actors
 
-import akka.actor._
-import akka.contrib.pattern.DistributedPubSubMediator.{Publish, Subscribe}
-import akka.contrib.pattern.{DistributedPubSubExtension, DistributedPubSubMediator, ClusterSharding, ShardRegion}
-import akka.persistence.PersistentActor
-import akka.routing.FromConfig
+import akka.actor.{ActorSystem, Props, ActorLogging, Actor}
+import akka.cluster.sharding.{ClusterShardingSettings, ShardRegion, ClusterSharding}
 import com.example.calcbattle.user
-import com.example.calcbattle.examiner
-
-import scala.concurrent.duration._
 
 object UserActor {
 
-  def props(examiner: ActorRef) = Props(new UserActor(examiner))
+  def props() = Props(new UserActor)
 
-  val userUpdatedTopic = "userUpdated"
+  val shardRegionName = "User"
 
-  val nrOfShards = 60
+  val nrOfShards = 50
 
-  val idExtractor: ShardRegion.IdExtractor = {
-    case msg @ user.api.Answer(uid, _, _, _) ⇒ (uid.underlying, msg)
+  val extractEntityId: ShardRegion.ExtractEntityId = {
+    case msg @ user.api.Join(uid)     => (uid.underlying, msg)
+    case msg @ user.api.GetState(uid) => (uid.underlying, msg)
+    case msg @ user.api.Answer(uid, _, _, _) => (uid.underlying, msg)
   }
 
-  val shardResolver: ShardRegion.ShardResolver = {
-    case msg @ user.api.Answer(uid, _, _, _) ⇒ (uid.hashCode % nrOfShards).toString
+  val extractShardId: ShardRegion.ExtractShardId = {
+    case msg @ user.api.Join(uid)     => (uid.hashCode % nrOfShards).toString
+    case msg @ user.api.GetState(uid) => (uid.hashCode % nrOfShards).toString
+    case msg @ user.api.Answer(uid, _, _, _) => (uid.hashCode % nrOfShards).toString
   }
 
-  def startupClusterShardingOn(system: ActorSystem) = {
-
-    val examiner =
-      system.actorOf(FromConfig.props(), "examinerRouter")
+  def startupSharding(system: ActorSystem) = {
 
     ClusterSharding(system).start(
-      typeName      = "User",
-      entryProps    = Some(props(examiner)),
-      idExtractor   = idExtractor,
-      shardResolver = shardResolver
+      typeName    = shardRegionName,
+      entityProps = UserWorker.props(),
+      settings    = ClusterShardingSettings(system),
+      extractEntityId = extractEntityId,
+      extractShardId  = extractShardId
     )
   }
+
 }
 
-class UserActor(examinerRouter: ActorRef) extends PersistentActor with ActorLogging {
+class UserActor extends Actor with ActorLogging {
   import UserActor._
 
-  override def persistenceId: String = s"${self.path.parent.name}-${self.path.name}"
+  val shardRegion = ClusterSharding(context.system).startProxy(
+    typeName = shardRegionName,
+    role     = Some("user"),
+    extractEntityId = extractEntityId,
+    extractShardId  = extractShardId
+  )
 
-  val mediator = DistributedPubSubExtension(context.system).mediator
-
-  var continuationCorrect = 0
-
-  override def preStart() = {
-    log.info("starting.")
-    mediator ! Subscribe(userUpdatedTopic, self)
-  }
-
-  override def postStop() = {
-    log.info("stopped.")
-  }
-
-  def updateState(event: user.api.Result): Unit = {
-    if (event.answerIsCorrect) {
-      continuationCorrect += 1
-      mediator ! Publish(userUpdatedTopic, user.api.UserUpdated(event.uid, continuationCorrect))
-    }
-  }
-
-  override def receiveRecover = {
-
-    case event: user.api.Result => updateState(event)
-  }
-
-  override def receiveCommand = {
-
-    case answer: user.api.Answer =>
-      val result = user.api.Result(answer.uid, answer.isCorrect)
-      persist(result)(updateState)
-      sender() ! result
-
-    case user.api.UserUpdated(uid, continuationCorrect) =>
-
-
+  def receive = {
+    case msg =>
+      shardRegion forward msg
   }
 
 }

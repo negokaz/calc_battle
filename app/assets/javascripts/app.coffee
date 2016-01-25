@@ -6,10 +6,8 @@ $ ->
       when 'question'
         a = message.question.a
         b = message.question.b
-        $('#question').html "<span id='question-a'>#{a}</span><span> + </span>><span'question-b'>#{b}</span>"
+        $('#question').html "<span id='question-a'>#{a}</span><span> + </span><span id='question-b'>#{b}</span>"
         $('#answer').attr 'answer', a + b
-      when 'result'
-
       when 'updateUser'
         for uid, continuationCorrect of message.user
           $("#uid_#{uid}").empty()
@@ -43,7 +41,6 @@ $ ->
       questionB = $("#question-b").text()
       input = $(this).val().trim()
       return unless input
-      # TODO: UID 足りへん
       ws.send JSON.stringify { answer: { questionA: questionA, questionB: questionB, userInput: input } }
       $(this).val ''
 

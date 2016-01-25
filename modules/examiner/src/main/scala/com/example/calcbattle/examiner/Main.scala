@@ -4,6 +4,9 @@ import akka.actor.{ActorSystem}
 import com.example.calcbattle.examiner.actors.{ExaminerActor}
 import com.typesafe.config.ConfigFactory
 
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
+
 object Main extends App {
 
   args match {
@@ -20,7 +23,7 @@ object Main extends App {
 
       system.actorOf(ExaminerActor.props(), ExaminerActor.name)
 
-      system.awaitTermination()
+      Await.result(system.whenTerminated, Duration.Inf)
 
     case _ =>
       throw new IllegalArgumentException("引数には <ホスト名> <ポート番号> を指定してください。")

@@ -1,48 +1,42 @@
 package actors
 
+import akka.pattern.ask
+import akka.pattern.pipe
 import akka.actor.{ActorLogging, Actor, ActorRef, Props}
+import akka.util.Timeout
 import play.api.libs.json.{Writes, Json, JsValue}
 import com.example.calcbattle.examiner
 import com.example.calcbattle.user
+import com.example.calcbattle.user.api.{UserState, UID}
+
+import scala.concurrent.Future
+import scala.concurrent.duration._
 
 object SocketActor {
   def props(uid: UID, userRouter: ActorRef, examinerRouter: ActorRef)(out: ActorRef) =
-    Props(new SocketActor(uid, userRouter, examinerRouter, FieldActor.field, out))
+    Props(new SocketActor(uid, userRouter, examinerRouter, out))
 
-  case class UpdateUsers(users: Set[User])
-  case class UpdateUser(user: User, finish: Boolean)
-  class UID(val id: String) extends AnyVal
-  case class User(uid: UID, continuationCorrect: Int)
+  case class Answer(questionA: Int, questionB: Int, userInput: Int)
 
-  implicit val userWrites = new Writes[User] {
-    def writes(user: User): JsValue = {
-      Json.obj(user.uid.id -> user.continuationCorrect)
-    }
-  }
-  implicit val usersWrites = new Writes[Set[User]] {
-    def writes(users: Set[User]): JsValue = {
-      Json.toJson(users.map { user: User =>
-        user.uid.id -> user.continuationCorrect
-      }.toMap)
-    }
-  }
+  implicit val uidWrites = Json.writes[UID]
+  implicit val userWrites = Json.writes[UserState]
   implicit val questionWrites = Json.writes[examiner.api.Question]
   implicit val resultWrites = Json.writes[user.api.Result]
-  implicit val answerReads = Json.reads[user.api.Answer]
+  implicit val answerReads = Json.reads[Answer]
 
 }
 
 import SocketActor._
-class SocketActor(uid: UID, userRouter: ActorRef, examinerRouter: ActorRef, field: ActorRef, out: ActorRef) extends Actor with ActorLogging {
+class SocketActor(uid: UID, userRouter: ActorRef, examinerRouter: ActorRef, out: ActorRef) extends Actor with ActorLogging {
 
   override def preStart() = {
-    FieldActor.field ! FieldActor.Subscribe(uid)
+    userRouter ! user.api.Join(uid)
   }
 
   def receive = {
     case js: JsValue => {
-      (js \ "answer").validate[user.api.Answer].foreach {
-        userRouter ! _
+      (js \ "answer").validate[Answer].foreach { ans =>
+        userRouter ! user.api.Answer(uid, ans.questionA, ans.questionB, ans.userInput)
       }
       examinerRouter ! examiner.api.Create
     }
@@ -54,13 +48,25 @@ class SocketActor(uid: UID, userRouter: ActorRef, examinerRouter: ActorRef, fiel
       val js = Json.obj("type" -> "result", "result" -> result)
       out ! js
     }
-    case UpdateUser(user, finish) if sender == field => {
-      val js = Json.obj("type" -> "updateUser", "user" -> user, "finish" -> finish)
+    case user.api.UserUpdated(user) => {
+      val js = Json.obj("type" -> "updateUser", "user" -> user, "finish" -> user.isCompleted)
       out ! js
     }
-    case UpdateUsers(users) if sender == field => {
+    case user.api.MemberUpdated(member) => {
+
+      implicit val timeout = Timeout(5 seconds)
+      import context.dispatcher
+
+      Future.sequence {
+        member.map { uid =>
+          (userRouter ? user.api.GetState(uid)).map { case state: user.api.UserState => state }
+        }
+      } pipeTo self
+    }
+
+    case users: Set[user.api.UserState] =>
       val js = Json.obj("type" -> "updateUsers", "users" -> users)
       out ! js
-    }
+
   }
 }
