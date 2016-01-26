@@ -16,8 +16,10 @@ lazy val root = (project in file(".")).enablePlugins(PlayScala)
       jdbc,
       cache,
       ws,
+      "com.github.romix.akka" %% "akka-kryo-serialization" % "0.4.0",
       "com.typesafe.akka" %% "akka-cluster" % "2.4.1",
-      "com.typesafe.akka" %% "akka-slf4j" % "2.4.1",
+      "com.typesafe.akka" %% "akka-slf4j"   % "2.4.1",
+      "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.1",
       "ch.qos.logback" % "logback-classic" % "1.1.3",
       specs2 % Test
     ),
@@ -41,6 +43,7 @@ lazy val user = (project in file("modules/user"))
   .settings(
     name := s"""$namePrefix-user""",
     libraryDependencies ++= Seq(
+      "com.github.romix.akka" %% "akka-kryo-serialization" % "0.4.0",
       "com.typesafe.akka" %% "akka-cluster" % "2.4.1",
       "com.typesafe.akka" %% "akka-cluster-tools" % "2.4.1",
       "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.1",
@@ -65,6 +68,7 @@ lazy val examiner = (project in file("modules/examiner"))
   .settings(
     name := s"""$namePrefix-examiner""",
     libraryDependencies ++= Seq(
+      "com.github.romix.akka" %% "akka-kryo-serialization" % "0.4.0",
       "com.typesafe.akka" %% "akka-cluster" % "2.4.1",
       "com.typesafe.akka" %% "akka-cluster-tools" % "2.4.1",
       "com.typesafe.akka" %% "akka-slf4j" % "2.4.1",

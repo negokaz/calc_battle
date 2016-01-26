@@ -19,6 +19,9 @@ object UserWorker {
   def props() = Props(new UserWorker())
 
   val userUpdatedTopic = "userUpdated"
+
+  case class Reset()
+
 }
 
 class UserWorker extends PersistentActor with ActorLogging {
@@ -58,21 +61,29 @@ class UserWorker extends PersistentActor with ActorLogging {
     }
   }
 
+  def updateState(event: Reset.type): Unit = {
+    continuationCorrect = 0
+  }
+
   override def receiveRecover = {
 
     case event: user.api.Result => updateState(event)
+    case event: Reset.type => updateState(event)
   }
 
   override def receiveCommand = {
 
     case user.api.Join(uid) =>
       val joinedUser = sender()
+      log.info("User {} joined!", uid)
+      context.watch(joinedUser)
       subscriber = Some(joinedUser)
       replicator ! Replicator.Update(memberSetKey, ORSet.empty[UID], Replicator.writeLocal, None) {
         _ + uid
       }
 
     case user.api.GetState(uid) =>
+      log.info("getState sender: {}", sender())
       sender() ! user.api.UserState(uid, continuationCorrect)
 
     case c @ Replicator.Changed(`memberSetKey`) =>
@@ -82,10 +93,21 @@ class UserWorker extends PersistentActor with ActorLogging {
     case answer: user.api.Answer =>
       val result = user.api.Result(answer.uid, answer.isCorrect)
       persist(result)(updateState)
+      log.info("answer sender: {}", sender())
       sender() ! result
 
     case msg: user.api.UserUpdated =>
+      if (msg.user.isCompleted) {
+        self ! Reset
+      }
       subscriber.foreach(_ ! msg)
+
+    case reset: Reset.type =>
+      persist(reset)(updateState)
+
+    case Terminated(joinedUser) =>
+      self ! PoisonPill
+
   }
 
 }

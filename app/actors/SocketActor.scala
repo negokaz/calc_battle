@@ -4,7 +4,7 @@ import akka.pattern.ask
 import akka.pattern.pipe
 import akka.actor.{ActorLogging, Actor, ActorRef, Props}
 import akka.util.Timeout
-import play.api.libs.json.{Writes, Json, JsValue}
+import play.api.libs.json.{JsString, Writes, Json, JsValue}
 import com.example.calcbattle.examiner
 import com.example.calcbattle.user
 import com.example.calcbattle.user.api.{UserState, UID}
@@ -18,7 +18,9 @@ object SocketActor {
 
   case class Answer(questionA: Int, questionB: Int, userInput: Int)
 
-  implicit val uidWrites = Json.writes[UID]
+  implicit val uidWrites = new Writes[UID] {
+    def writes(uid: UID): JsValue = JsString(uid.underlying)
+  }
   implicit val userWrites = Json.writes[UserState]
   implicit val questionWrites = Json.writes[examiner.api.Question]
   implicit val resultWrites = Json.writes[user.api.Result]

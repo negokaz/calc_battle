@@ -21,14 +21,14 @@ package object api {
     * ユーザーの状態
  *
     * @param uid 状態が更新されたユーザーのID
-    * @param continuationCurrent 現在の連続回答数
+    * @param continuationCorrect 現在の連続回答数
     */
-  case class UserState(uid: UID, continuationCurrent: Int) {
+  case class UserState(uid: UID, continuationCorrect: Int) {
 
     /**
       * @return true: ユーザーが連続回答のノルマを達成した
       */
-    def isCompleted = continuationCurrent >= 5
+    def isCompleted = continuationCorrect >= 5
   }
 
   /**

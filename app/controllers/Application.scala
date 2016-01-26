@@ -6,6 +6,7 @@ import javax.inject.Inject
 import akka.actor.ActorSystem
 import akka.routing.FromConfig
 import play.api._
+import play.api.libs.concurrent.Akka
 import play.api.mvc._
 import play.api.Play.current
 import play.api.libs.json.JsValue
@@ -15,21 +16,22 @@ import com.example.calcbattle.user
 
 import actors.{SocketActor}
 
-class Application @Inject()(system: ActorSystem) extends Controller {
+class Application extends Controller {
+
   val UID = "uid"
-  val counter: AtomicInteger = new AtomicInteger(0)
 
   def index = Action { implicit request =>
     val uid = request.session.get(UID).getOrElse {
-      counter.incrementAndGet().toString
+      // ブラウザ上で中途半端な位置で自動改行されないように"-"を消しておく
+      java.util.UUID.randomUUID().toString.replace("-", "")
     }
     Ok(views.html.index(uid)).withSession {
       request.session + (UID -> uid)
     }
   }
 
-  val examinerRouter = system.actorOf(FromConfig.props(), "examinerRouter")
-  val userRouter     = system.actorOf(FromConfig.props(), "userRouter")
+  val examinerRouter = Akka.system.actorOf(FromConfig.props(), "examinerRouter")
+  val userRouter     = Akka.system.actorOf(FromConfig.props(), "userRouter")
 
   def ws = WebSocket.tryAcceptWithActor[JsValue, JsValue] { implicit request =>
     Future.successful(request.session.get(UID) match {
