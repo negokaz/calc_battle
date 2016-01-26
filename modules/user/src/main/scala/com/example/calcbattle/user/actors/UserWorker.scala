@@ -22,6 +22,8 @@ object UserWorker {
 
   case class Reset()
 
+  case class Terminate()
+
 }
 
 class UserWorker extends PersistentActor with ActorLogging {
@@ -30,18 +32,31 @@ class UserWorker extends PersistentActor with ActorLogging {
   override def persistenceId: String = s"${self.path.parent.name}-${self.path.name}"
 
   /**
-    * ユーザーの状態が更新されたのをクラスタ全体に通知する
+    * ユーザーの状態が更新されたのイベントをuserクラスタ全体に通知するのに使う
     */
   val mediator = DistributedPubSub(context.system).mediator
 
   val replicator = DistributedData(context.system).replicator
   implicit val node = Cluster(context.system)
 
+  /**
+    * ゲームに参加している全ユーザーのUIDをuserクラスタで共有するためのキー
+    */
   val memberSetKey = ORSetKey[UID]("member-set")
 
+  /**
+    * 正解数
+    */
   var continuationCorrect = 0
 
-  var subscriber: Option[ActorRef] = None
+  /**
+    * 同じブラウザで複数のタブを開いたとき(複数の Actor が Join してきたとき)に、
+    * タブが残っているのにこの Actor を Stop してしまわないように、
+    * 全タブの状態を死活監視できるように Set にしている。
+    */
+  var subscribers: Set[ActorRef] = Set()
+
+  var uid: Option[UID] = None
 
   override def preStart() = {
     log.info("starting.")
@@ -73,40 +88,50 @@ class UserWorker extends PersistentActor with ActorLogging {
 
   override def receiveCommand = {
 
-    case user.api.Join(uid) =>
+    case user.api.Join(_uid) =>
       val joinedUser = sender()
-      log.info("User {} joined!", uid)
+      log.info("User {} joined.", _uid)
       context.watch(joinedUser)
-      subscriber = Some(joinedUser)
+      subscribers += joinedUser
+      uid = Some(_uid)
       replicator ! Replicator.Update(memberSetKey, ORSet.empty[UID], Replicator.writeLocal, None) {
-        _ + uid
+        _ + _uid
       }
 
     case user.api.GetState(uid) =>
-      log.info("getState sender: {}", sender())
       sender() ! user.api.UserState(uid, continuationCorrect)
 
     case c @ Replicator.Changed(`memberSetKey`) =>
       val data = c.get(memberSetKey)
-      subscriber.foreach(_ ! user.api.MemberUpdated(data.elements))
+      subscribers.foreach(_ ! user.api.MemberUpdated(data.elements))
 
     case answer: user.api.Answer =>
       val result = user.api.Result(answer.uid, answer.isCorrect)
       persist(result)(updateState)
-      log.info("answer sender: {}", sender())
       sender() ! result
 
     case msg: user.api.UserUpdated =>
       if (msg.user.isCompleted) {
         self ! Reset
       }
-      subscriber.foreach(_ ! msg)
+      subscribers.foreach(_ ! msg)
 
     case reset: Reset.type =>
       persist(reset)(updateState)
 
     case Terminated(joinedUser) =>
-      self ! PoisonPill
+      subscribers -= joinedUser
+      if (subscribers.isEmpty) {
+        self ! Terminate
+      }
+
+    case Terminate =>
+      uid.foreach { uid=>
+        replicator ! Replicator.Update(memberSetKey, ORSet.empty[UID], Replicator.writeLocal, None) {
+          _ - uid
+        }
+      }
+      context.stop(self)
 
   }
 
