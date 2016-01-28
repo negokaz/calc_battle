@@ -2,12 +2,33 @@ package com.example.calcbattle.examiner
 
 import akka.actor.{ActorSystem}
 import com.example.calcbattle.examiner.actors.{ExaminerActor}
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.Await
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration._
+
+object ExaminerService {
+
+  def start(config: Config) = {
+
+    val system = ActorSystem("application", config)
+
+    system.actorOf(ExaminerActor.props(), ExaminerActor.name)
+
+    Await.result(system.whenTerminated, Duration.Inf)
+  }
+
+}
 
 object Main extends App {
+
+  val config = ConfigFactory.load()
+
+  ExaminerService.start(config)
+
+}
+
+object LocalMain extends App {
 
   args match {
 
@@ -19,11 +40,7 @@ object Main extends App {
            |""".stripMargin
       ).withFallback(ConfigFactory.load())
 
-      val system = ActorSystem("application", config)
-
-      system.actorOf(ExaminerActor.props(), ExaminerActor.name)
-
-      Await.result(system.whenTerminated, Duration.Inf)
+      ExaminerService.start(config)
 
     case _ =>
       throw new IllegalArgumentException("引数には <ホスト名> <ポート番号> を指定してください。")

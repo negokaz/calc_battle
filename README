@@ -2,3 +2,14 @@ This is your new Play application
 =================================
 
 This file will be packaged with your application, when using `activator dist`.
+
+
+## Docker
+
+```bash
+docker run -d --name cassandra cassandra
+docker run -d --name seed1 calc_battle-examiner:1.0-SNAPSHOT
+docker run -d --name seed2 --link seed1:primary_seed calc_battle-examiner:1.0-SNAPSHOT
+docker run -d  --link seed1:primary_seed --link seed2:secondary_seed -p 9000:9000               calc_battle-frontend:1.0-SNAPSHOT
+docker run -it --link seed1:primary_seed --link seed2:secondary_seed --link cassandra:cassandra calc_battle-user:1.0-SNAPSHOT
+```

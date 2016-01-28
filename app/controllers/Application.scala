@@ -1,9 +1,5 @@
 package controllers
 
-import java.util.concurrent.atomic.AtomicInteger
-import javax.inject.Inject
-
-import akka.actor.ActorSystem
 import akka.routing.FromConfig
 import play.api._
 import play.api.libs.concurrent.Akka

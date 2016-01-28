@@ -2,11 +2,13 @@ package com.example.calcbattle.user.actors
 
 import akka.actor._
 import akka.cluster.Cluster
+import akka.cluster.ddata.Replicator.WriteMajority
 import akka.cluster.ddata._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator
+import akka.cluster.sharding.ShardRegion.Passivate
 import akka.cluster.sharding.{ClusterShardingSettings, ClusterSharding, ShardRegion}
-import akka.persistence.PersistentActor
+import akka.persistence.{SnapshotOffer, PersistentActor}
 import akka.routing.FromConfig
 import com.example.calcbattle.user
 import com.example.calcbattle.user.api.UID
@@ -23,6 +25,8 @@ object UserWorker {
   case class Reset()
 
   case class Terminate()
+
+  case class Joined(uid: UID, subscriber: ActorRef)
 
 }
 
@@ -59,7 +63,7 @@ class UserWorker extends PersistentActor with ActorLogging {
   var uid: Option[UID] = None
 
   override def preStart() = {
-    log.info("starting.")
+    log.info("starting. {}", persistenceId)
     mediator   ! DistributedPubSubMediator.Subscribe(userUpdatedTopic, self)
     replicator ! Replicator.Subscribe(memberSetKey, self)
   }
@@ -68,35 +72,49 @@ class UserWorker extends PersistentActor with ActorLogging {
     log.info("stopped.")
   }
 
-  def updateState(event: user.api.Result): Unit = {
-    if (event.answerIsCorrect) {
-      continuationCorrect += 1
-      val update = user.api.UserUpdated(UserState(event.uid, continuationCorrect))
-      mediator ! DistributedPubSubMediator.Publish(userUpdatedTopic, update)
+  def updateState(event: Joined): Unit = {
+    context.watch(sender)
+    subscribers += event.subscriber
+    uid = Some(event.uid)
+    replicator ! Replicator.Update(memberSetKey, ORSet.empty[UID], Replicator.writeLocal, None) {
+      _ + event.uid
     }
+  }
+
+  def updateState(event: user.api.Result): Unit = {
+    val previousContinuationCorrect = continuationCorrect
+    continuationCorrect = if (event.answerIsCorrect) continuationCorrect + 1 else 0
+    uid.foreach { uid =>
+      log.info("User {} answered: {} -> {}", uid, previousContinuationCorrect, continuationCorrect)
+    }
+    val update = user.api.UserUpdated(UserState(event.uid, continuationCorrect))
+    mediator ! DistributedPubSubMediator.Publish(userUpdatedTopic, update)
   }
 
   def updateState(event: Reset.type): Unit = {
     continuationCorrect = 0
   }
 
+  def updateState(event: Terminated): Unit = {
+    subscribers -= event.actor
+    if (subscribers.isEmpty) {
+      context.parent ! Passivate(stopMessage = Terminate)
+    }
+  }
+
   override def receiveRecover = {
 
+    case event: Joined          => updateState(event)
     case event: user.api.Result => updateState(event)
-    case event: Reset.type => updateState(event)
+    case event: Reset.type      => updateState(event)
+    case event: Terminated      => updateState(event)
   }
 
   override def receiveCommand = {
 
-    case user.api.Join(_uid) =>
-      val joinedUser = sender()
-      log.info("User {} joined.", _uid)
-      context.watch(joinedUser)
-      subscribers += joinedUser
-      uid = Some(_uid)
-      replicator ! Replicator.Update(memberSetKey, ORSet.empty[UID], Replicator.writeLocal, None) {
-        _ + _uid
-      }
+    case msg: user.api.Join =>
+      log.info("User {} joined.", msg.uid)
+      persist(Joined(msg.uid, sender()))(updateState)
 
     case user.api.GetState(uid) =>
       sender() ! user.api.UserState(uid, continuationCorrect)
@@ -119,11 +137,8 @@ class UserWorker extends PersistentActor with ActorLogging {
     case reset: Reset.type =>
       persist(reset)(updateState)
 
-    case Terminated(joinedUser) =>
-      subscribers -= joinedUser
-      if (subscribers.isEmpty) {
-        self ! Terminate
-      }
+    case terminated: Terminated =>
+      persist(terminated)(updateState)
 
     case Terminate =>
       uid.foreach { uid=>
