@@ -40,7 +40,8 @@ class SocketActor(uid: UID, userRouter: ActorRef, examinerRouter: ActorRef, out:
 
     case js: JsValue =>
       (js \ "answer").validate[Answer].foreach { ans =>
-        userRouter ! user.api.Answer(uid, ans.questionA, ans.questionB, ans.userInput)
+        val handler = context.actorOf(AnswerResultHandler.props(replyTo = self))
+        userRouter.tell(user.api.Answer(uid, ans.questionA, ans.questionB, ans.userInput), handler)
         self ! RefreshQuestion
       }
 
@@ -51,7 +52,6 @@ class SocketActor(uid: UID, userRouter: ActorRef, examinerRouter: ActorRef, out:
       }
 
     case RefreshQuestion =>
-      log.info("refreshing question...")
       val handler = context.actorOf(QuestionHandler.props(replyTo = self))
       examinerRouter.tell(examiner.api.Create, handler)
 
@@ -67,6 +67,10 @@ class SocketActor(uid: UID, userRouter: ActorRef, examinerRouter: ActorRef, out:
     case result: user.api.Result =>
       val js = Json.obj("type" -> "result", "result" -> result)
       out ! js
+
+    case AnswerResultHandler.AnswerResultReceiveTimeout =>
+      log.warning("答えの結果が返って来ませんでした。別の問題を出します。")
+      self ! RefreshQuestion
 
     case user.api.UserUpdated(user) =>
       val js = Json.obj("type" -> "updateUser", "user" -> user, "finish" -> user.isCompleted)
@@ -144,6 +148,31 @@ class QuestionHandler(replyTo: ActorRef) extends Actor {
 
     case e: ReceiveTimeout =>
       replyTo ! QuestionReceiveTimeout
+      context.stop(self)
+
+  }
+}
+
+
+object AnswerResultHandler {
+  def props(replyTo: ActorRef) = Props(new AnswerResultHandler(replyTo))
+
+  case object AnswerResultReceiveTimeout
+}
+
+class AnswerResultHandler(replyTo: ActorRef) extends Actor {
+  import AnswerResultHandler._
+
+  context.setReceiveTimeout(5 seconds)
+
+  def receive = {
+
+    case result: user.api.Result =>
+      replyTo ! result
+      context.stop(self)
+
+    case e: ReceiveTimeout =>
+      replyTo ! AnswerResultReceiveTimeout
       context.stop(self)
 
   }
