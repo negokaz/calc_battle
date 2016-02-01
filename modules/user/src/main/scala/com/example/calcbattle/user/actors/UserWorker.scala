@@ -72,8 +72,16 @@ class UserWorker extends PersistentActor with ActorLogging {
     log.info("stopped.")
   }
 
+  override def receiveRecover = {
+    case event: Joined          => updateState(event)
+    case event: user.api.Result => updateState(event)
+    case Reset                  => updateState(Reset)
+    case event: Terminated      => updateState(event)
+  }
+
   def updateState(event: Joined): Unit = {
-    context.watch(sender)
+    log.info("User {} joined.", event.uid)
+    context.watch(event.subscriber)
     subscribers += event.subscriber
     uid = Some(event.uid)
     replicator ! Replicator.Update(memberSetKey, ORSet.empty[UID], Replicator.writeLocal, None) {
@@ -96,30 +104,23 @@ class UserWorker extends PersistentActor with ActorLogging {
   }
 
   def updateState(event: Terminated): Unit = {
+    log.info("terminated: {}", event.actor)
     subscribers -= event.actor
     if (subscribers.isEmpty) {
       context.parent ! Passivate(stopMessage = Terminate)
     }
   }
 
-  override def receiveRecover = {
-
-    case event: Joined          => updateState(event)
-    case event: user.api.Result => updateState(event)
-    case event: Reset.type      => updateState(event)
-    case event: Terminated      => updateState(event)
-  }
-
   override def receiveCommand = {
 
     case msg: user.api.Join =>
-      log.info("User {} joined.", msg.uid)
-      persist(Joined(msg.uid, sender()))(updateState)
+      val subscriber = sender()
+      persist(Joined(msg.uid, subscriber))(updateState)
 
     case user.api.GetState(uid) =>
       sender() ! user.api.UserState(uid, continuationCorrect)
 
-    case c @ Replicator.Changed(`memberSetKey`) =>
+    case c@Replicator.Changed(`memberSetKey`) =>
       val data = c.get(memberSetKey)
       subscribers.foreach(_ ! user.api.MemberUpdated(data.elements))
 
@@ -134,8 +135,8 @@ class UserWorker extends PersistentActor with ActorLogging {
       }
       subscribers.foreach(_ ! msg)
 
-    case reset: Reset.type =>
-      persist(reset)(updateState)
+    case Reset =>
+      persist(Reset)(updateState)
 
     case terminated: Terminated =>
       persist(terminated)(updateState)
@@ -147,7 +148,6 @@ class UserWorker extends PersistentActor with ActorLogging {
         }
       }
       context.stop(self)
-
   }
 
 }

@@ -2,10 +2,11 @@ package com.example.calcbattle.user
 
 package object api {
 
+
   /**
     * ユーザー ID
     */
-  case class UID(val underlying: String) extends AnyVal
+  case class UID(underlying: String) extends AnyVal
 
   /**
     * ユーザーとして参加する

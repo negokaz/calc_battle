@@ -18,10 +18,6 @@ object ExaminerActor {
   */
 class ExaminerActor extends Actor with ActorLogging {
 
-  override def preStart() = {
-    log.info("Hi, I'm a examiner.")
-  }
-
   def receive = {
 
     case examiner.api.Create =>
